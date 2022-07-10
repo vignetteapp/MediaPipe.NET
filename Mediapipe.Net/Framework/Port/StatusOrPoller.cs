@@ -7,7 +7,7 @@ using Mediapipe.Net.Native;
 
 namespace Mediapipe.Net.Framework.Port
 {
-    public unsafe class StatusOrPoller<T> : StatusOr<OutputStreamPoller<T>>
+    public unsafe class StatusOrPoller : StatusOr<OutputStreamPoller>
     {
         public StatusOrPoller(void* ptr) : base(ptr) { }
 
@@ -31,12 +31,12 @@ namespace Mediapipe.Net.Framework.Port
 
         public override bool Ok() => SafeNativeMethods.mp_StatusOrPoller__ok(MpPtr) > 0;
 
-        public override OutputStreamPoller<T> Value()
+        public override OutputStreamPoller Value()
         {
             UnsafeNativeMethods.mp_StatusOrPoller__value(MpPtr, out var pollerPtr).Assert();
             Dispose();
 
-            return new OutputStreamPoller<T>(pollerPtr);
+            return new OutputStreamPoller(pollerPtr);
         }
     }
 }

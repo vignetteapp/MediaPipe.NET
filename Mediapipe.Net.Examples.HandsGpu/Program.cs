@@ -3,25 +3,25 @@
 // MediaPipe.NET is licensed under the MIT License. See LICENSE for details.
 
 using System;
-using System.Collections.Generic;
+using System.Runtime.Versioning;
 using CommandLine;
 using FFmpeg.AutoGen;
 using Mediapipe.Net.External;
 using Mediapipe.Net.Framework.Format;
-using Mediapipe.Net.Framework.Protobuf;
 using Mediapipe.Net.Solutions;
 using Mediapipe.Net.Util;
 using SeeShark;
 using SeeShark.Device;
 using SeeShark.FFmpeg;
 
-namespace Mediapipe.Net.Examples.FaceMesh
+namespace Mediapipe.Net.Examples.HandsGpu
 {
+    [SupportedOSPlatform("Linux")]
     public static class Program
     {
         private static Camera? camera;
         private static FrameConverter? converter;
-        private static FaceMeshCpuSolution? calculator;
+        private static HandsGpuSolution? calculator;
         private static ResourceManager? resourceManager;
 
         public static void Main(string[] args)
@@ -72,28 +72,46 @@ namespace Mediapipe.Net.Examples.FaceMesh
                 }
             }
 
-            calculator = new FaceMeshCpuSolution();
+            calculator = new HandsGpuSolution();
+
+            camera.OnFrame += onFrameEventHandler;
+            camera.StartCapture();
 
             Console.CancelKeyPress += (sender, eventArgs) => exit();
-            int frameCount = 0;
-            while (true)
+
+            GC.KeepAlive(resourceManager);
+        }
+
+        private static int frameCount = 0;
+        private static void onFrameEventHandler(object? sender, FrameEventArgs e)
+        {
+            if (calculator == null)
+                return;
+
+            Frame frame = e.Frame;
+            if (frame.Width == 0 || frame.Height == 0)
+                return;
+
+            converter ??= new FrameConverter(frame, PixelFormat.Rgba);
+            Frame cFrame = converter.Convert(frame);
+
+            ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
+                cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
+
+            HandsOutput handsOutput = calculator.Compute(imgframe);
+
+            if (handsOutput.MultiHandLandmarks != null)
             {
-                if (calculator == null)
-                    return;
-
-                var frame = camera.GetFrame();
-                converter ??= new FrameConverter(frame, PixelFormat.Rgba);
-                Frame cFrame = converter.Convert(frame);
-
-                using ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
-                    cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
-
-                List<NormalizedLandmarkList>? landmarks = calculator.Compute(imgframe);
-                if (landmarks == null)
-                    Console.WriteLine("Got null landmarks");
-                else
-                    Console.WriteLine($"Got a list of {landmarks[0].Landmark.Count} landmarks at frame {frameCount++}");
+                var landmarks = handsOutput.MultiHandLandmarks[0].Landmark;
+                Console.WriteLine($"Got hands output with {landmarks.Count} landmarks"
+                    + $" at frame {frameCount}");
             }
+            else
+            {
+                Console.WriteLine("No hand landmarks");
+            }
+
+            frameCount++;
         }
 
         // Dispose everything on exit

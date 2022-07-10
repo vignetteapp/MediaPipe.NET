@@ -2,6 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run BlazePose Example (CPU, console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/Mediapipe.Net.Examples.BlazePose/bin/Debug/net6.0/Mediapipe.Net.Examples.BlazePose.dll",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
             "name": "Run FaceMesh Example (CPU, console)",
             "type": "coreclr",
             "request": "launch",

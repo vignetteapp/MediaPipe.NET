@@ -6,7 +6,7 @@ using System;
 using System.IO;
 using Mediapipe.Net.Util;
 
-namespace Mediapipe.Net.Examples.FaceMesh
+namespace Mediapipe.Net.Examples.PoseGpu
 {
     public class DummyResourceManager : ResourceManager
     {

@@ -5,7 +5,7 @@
 using System;
 using CommandLine;
 using FFmpeg.AutoGen;
-using Mediapipe.Net.Calculators;
+using Mediapipe.Net.Solutions;
 using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -20,7 +20,7 @@ namespace Mediapipe.Net.Examples.OsuFrameworkVisualTests
     {
         private Camera? camera;
         private FrameConverter? converter;
-        private FaceMeshCpuCalculator? calculator;
+        private FaceMeshCpuSolution? calculator;
 
         protected override Container<Drawable> Content { get; }
 
@@ -70,8 +70,7 @@ namespace Mediapipe.Net.Examples.OsuFrameworkVisualTests
             converter = new FrameConverter(dummyFrame, dummyFrame.Width / 2, dummyFrame.Height / 2, PixelFormat.Rgba);
             dependencies?.Cache(converter);
 
-            calculator = new FaceMeshCpuCalculator();
-            calculator.Run();
+            calculator = new FaceMeshCpuSolution();
             dependencies?.Cache(calculator);
         }
 #pragma warning restore IDE0051

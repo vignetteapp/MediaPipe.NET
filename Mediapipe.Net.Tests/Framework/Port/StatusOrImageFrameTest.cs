@@ -4,7 +4,7 @@
 
 using Mediapipe.Net.Framework;
 using Mediapipe.Net.Framework.Format;
-using Mediapipe.Net.Framework.Packet;
+using Mediapipe.Net.Framework.Packets;
 using Mediapipe.Net.Framework.Port;
 using NUnit.Framework;
 
@@ -57,9 +57,9 @@ namespace Mediapipe.Net.Tests.Framework.Port
         private static StatusOrImageFrame initializeSubject()
         {
             var imageFrame = new ImageFrame(ImageFormat.Sbgra, 10, 10);
-            var packet = new ImageFramePacket(imageFrame, new Timestamp(1));
+            var packet = PacketFactory.ImageFramePacket(imageFrame, new Timestamp(1));
 
-            return (StatusOrImageFrame)packet.Consume();
+            return (StatusOrImageFrame)packet.ConsumeImageFrame();
         }
     }
 }

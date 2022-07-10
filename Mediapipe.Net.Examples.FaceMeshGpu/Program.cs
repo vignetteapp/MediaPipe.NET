@@ -7,10 +7,10 @@ using System.Collections.Generic;
 using System.Runtime.Versioning;
 using CommandLine;
 using FFmpeg.AutoGen;
-using Mediapipe.Net.Calculators;
 using Mediapipe.Net.External;
 using Mediapipe.Net.Framework.Format;
 using Mediapipe.Net.Framework.Protobuf;
+using Mediapipe.Net.Solutions;
 using SeeShark;
 using SeeShark.Device;
 using SeeShark.FFmpeg;
@@ -22,7 +22,7 @@ namespace Mediapipe.Net.Examples.FaceMeshGpu
     {
         private static Camera? camera;
         private static FrameConverter? converter;
-        private static FaceMeshGpuCalculator? calculator;
+        private static FaceMeshGpuSolution? calculator;
 
         public static void Main(string[] args)
         {
@@ -58,42 +58,43 @@ namespace Mediapipe.Net.Examples.FaceMeshGpu
                         });
                     Console.WriteLine($"Using camera {camera.Info}");
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    Console.Error.WriteLine($"No camera exists at index {parsed.CameraIndex}.");
+                    Console.Error.WriteLine($"An error occured while trying to use camera at index {parsed.CameraIndex}.");
+                    Console.Error.WriteLine(e);
                     return;
                 }
             }
 
-            calculator = new FaceMeshGpuCalculator();
-            calculator.OnResult += handleLandmarks;
-            calculator.Run();
+            calculator = new FaceMeshGpuSolution();
 
             Console.CancelKeyPress += (sender, eventArgs) => exit();
+            int frameCount = 0;
             while (true)
             {
-                var frame = camera.GetFrame();
+                if (calculator == null)
+                    return;
 
+                Frame frame = camera.GetFrame();
                 converter ??= new FrameConverter(frame, PixelFormat.Rgba);
-
                 Frame cFrame = converter.Convert(frame);
 
-                ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
+                using ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
                     cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
 
-                using ImageFrame? img = calculator.Send(imgframe);
+                List<NormalizedLandmarkList>? landmarks = calculator.Compute(imgframe);
+                if (landmarks == null)
+                    Console.WriteLine("Got null landmarks");
+                else
+                    Console.WriteLine($"Got a list of {landmarks[0].Landmark.Count} landmarks at frame {frameCount++}");
             }
-        }
-
-        private static void handleLandmarks(object? sender, List<NormalizedLandmarkList> landmarks)
-        {
-            Console.WriteLine($"Got a list of {landmarks[0].Landmark.Count} landmarks at frame {calculator?.CurrentFrame}");
         }
 
         // Dispose everything on exit
         private static void exit()
         {
             Console.WriteLine("Exiting...");
+            camera?.StopCapture();
             camera?.Dispose();
             converter?.Dispose();
             calculator?.Dispose();

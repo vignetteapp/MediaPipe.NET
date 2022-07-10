@@ -4,12 +4,12 @@
 
 using System;
 using Mediapipe.Net.Core;
-using Mediapipe.Net.Framework.Packet;
+using Mediapipe.Net.Framework.Packets;
 using Mediapipe.Net.Native;
 
 namespace Mediapipe.Net.Framework
 {
-    public unsafe class OutputStreamPoller<T> : MpResourceHandle
+    public unsafe class OutputStreamPoller : MpResourceHandle
     {
         public OutputStreamPoller(void* ptr) : base(ptr) { }
 
@@ -18,7 +18,7 @@ namespace Mediapipe.Net.Framework
             UnsafeNativeMethods.mp_OutputStreamPoller__delete(Ptr);
         }
 
-        public bool Next(Packet<T> packet)
+        public bool Next(Packet packet)
         {
             UnsafeNativeMethods.mp_OutputStreamPoller__Next_Ppacket(MpPtr, packet.MpPtr, out var result).Assert();
 

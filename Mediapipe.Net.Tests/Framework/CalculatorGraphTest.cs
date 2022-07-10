@@ -3,7 +3,7 @@
 // MediaPipe.NET is licensed under the MIT License. See LICENSE for details.
 
 using Mediapipe.Net.Framework;
-using Mediapipe.Net.Framework.Packet;
+using Mediapipe.Net.Framework.Packets;
 using Mediapipe.Net.Framework.Port;
 using Mediapipe.Net.Framework.Protobuf;
 using NUnit.Framework;
@@ -92,26 +92,26 @@ output_stream: ""out""
         [Test]
         public void Initialize_ShouldReturnOk_When_CalledWithConfigAndSidePacket_And_ConfigIsNotSet()
         {
-            using var sidePacket = new SidePacket();
-            sidePacket.Emplace("flag", new BoolPacket(true));
+            using var sidePackets = new SidePackets();
+            sidePackets.Emplace("flag", PacketFactory.BoolPacket(true));
 
             using var graph = new CalculatorGraph();
             var config = CalculatorGraphConfig.Parser.ParseFromTextFormat(valid_config_text);
 
-            using var status = graph.Initialize(config, sidePacket);
+            using var status = graph.Initialize(config, sidePackets);
             Assert.True(status.Ok());
         }
 
         [Test]
         public void Initialize_ShouldReturnInternalError_When_CalledWithConfigAndSidePacket_And_ConfigIsSet()
         {
-            using var sidePacket = new SidePacket();
-            sidePacket.Emplace("flag", new BoolPacket(true));
+            using var sidePackets = new SidePackets();
+            sidePackets.Emplace("flag", PacketFactory.BoolPacket(true));
 
             using var graph = new CalculatorGraph(valid_config_text);
             var config = CalculatorGraphConfig.Parser.ParseFromTextFormat(valid_config_text);
 
-            using var status = graph.Initialize(config, sidePacket);
+            using var status = graph.Initialize(config, sidePackets);
             Assert.AreEqual(status.Code, Status.StatusCode.Internal);
         }
         #endregion

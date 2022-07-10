@@ -31,7 +31,7 @@ namespace Mediapipe.Net.Examples.OsuFrameworkVisualTests.Visual
                     {
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
-                        Size = new Vector2(1280, 720),
+                        Size = new Vector2(800, 450),
                         FillMode = FillMode.Fit,
                     },
                 },

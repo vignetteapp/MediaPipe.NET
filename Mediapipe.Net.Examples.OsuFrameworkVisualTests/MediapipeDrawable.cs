@@ -3,15 +3,19 @@
 // MediaPipe.NET is licensed under the MIT License. See LICENSE for details.
 
 using System;
-using Mediapipe.Net.Calculators;
+using System.Collections.Generic;
+using System.Threading;
+using Google.Protobuf.Collections;
 using Mediapipe.Net.Framework.Format;
+using Mediapipe.Net.Framework.Protobuf;
+using Mediapipe.Net.Solutions;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using SeeShark;
-using SeeShark.Decode;
 using SeeShark.Device;
 using SixLabors.ImageSharp.PixelFormats;
 using Image = SixLabors.ImageSharp.Image;
@@ -22,10 +26,13 @@ namespace Mediapipe.Net.Examples.OsuFrameworkVisualTests
     {
         private Camera? camera;
         private FrameConverter? converter;
-        private FaceMeshCpuCalculator? calculator;
+        private FaceMeshCpuSolution? calculator;
 
+        private Circle[]? circles;
         private readonly Sprite sprite;
         private Texture? texture;
+
+        private Thread? frameLoopThread;
 
         public MediapipeDrawable()
         {
@@ -43,39 +50,87 @@ namespace Mediapipe.Net.Examples.OsuFrameworkVisualTests
 
 #pragma warning disable IDE0051
         [BackgroundDependencyLoader]
-        private void load(Camera camera, FrameConverter converter, FaceMeshCpuCalculator calculator)
+        private void load(Camera camera, FrameConverter converter, FaceMeshCpuSolution calculator)
         {
             this.camera = camera;
             this.converter = converter;
             this.calculator = calculator;
-            this.camera.OnFrame += onFrameEventHandler;
-            this.camera.StartCapture();
+
+            frameLoopThread = new Thread(frameLoop);
+            frameLoopThread.Start();
         }
 #pragma warning restore IDE0051
 
-        private unsafe void onFrameEventHandler(object? sender, FrameEventArgs e)
+        private void frameLoop()
         {
-            if (converter == null || calculator == null)
+            if (camera == null || calculator == null)
                 return;
 
-            if (e.Status != DecodeStatus.NewFrame)
-                return;
+            while (true)
+            {
+                Frame frame = camera.GetFrame();
+                converter ??= new FrameConverter(frame, PixelFormat.Rgba);
+                Frame cFrame = converter.Convert(frame);
 
-            Frame frame = e.Frame;
-            Frame cFrame = converter.Convert(frame);
-            ImageFrame imgFrame = new ImageFrame(ImageFormat.Srgba,
-                cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
-            using ImageFrame? outImgFrame = calculator.Send(imgFrame);
-            if (outImgFrame == null)
-                return;
+                using ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
+                    cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
 
-            var span = new ReadOnlySpan<byte>(outImgFrame.MutablePixelData, outImgFrame.Height * outImgFrame.WidthStep);
-            var pixelData = Image.LoadPixelData<Rgba32>(span, cFrame.Width, cFrame.Height);
+                List<NormalizedLandmarkList>? landmarkList = calculator.Compute(imgframe);
 
-            texture ??= new Texture(cFrame.Width, cFrame.Height);
-            texture.SetData(new TextureUpload(pixelData));
-            sprite.FillAspectRatio = (float)cFrame.Width / cFrame.Height;
-            sprite.Texture = texture;
+                var pixelData = Image.LoadPixelData<Rgba32>(cFrame.RawData, cFrame.Width, cFrame.Height);
+
+                texture ??= new Texture(cFrame.Width, cFrame.Height);
+                texture.SetData(new TextureUpload(pixelData));
+                sprite.FillAspectRatio = (float)cFrame.Width / cFrame.Height;
+                sprite.Texture = texture;
+
+                if (landmarkList != null && landmarkList[0] != null)
+                    drawLandmarks(landmarkList[0]);
+            }
         }
+
+        private void drawLandmarks(NormalizedLandmarkList list)
+        {
+            RepeatedField<NormalizedLandmark> landmarks = list.Landmark;
+            if (landmarks.Count == 0)
+                return;
+
+            if (circles == null)
+            {
+                circles = new Circle[landmarks.Count];
+                for (int i = 0; i < circles.Length; i++)
+                {
+                    circles[i] = new Circle
+                    {
+                        X = 0,
+                        Y = 0,
+                        Width = 1,
+                        Height = 1,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Colour = Colour4.GhostWhite,
+                    };
+                }
+                Schedule(() => AddRangeInternal(circles));
+            }
+
+            for (int i = 0; i < landmarks.Count; i++)
+            {
+                NormalizedLandmark landmark = landmarks[i];
+                Circle circle = circles[i];
+
+                Schedule(() =>
+                {
+                    circle.X = (landmark.X - .5f) * Width;
+                    circle.Y = (landmark.Y - .5f) * Height;
+
+                    float size = sigmoid(landmark.Z) * 4;
+                    circle.Width = size;
+                    circle.Height = size;
+                });
+            }
+        }
+
+        private float sigmoid(float x) => 1 / (1 + MathF.Exp(-x));
     }
 }

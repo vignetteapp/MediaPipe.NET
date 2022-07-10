@@ -3,33 +3,31 @@
 // MediaPipe.NET is licensed under the MIT License. See LICENSE for details.
 
 using System;
-using System.Collections.Generic;
 using CommandLine;
 using FFmpeg.AutoGen;
 using Mediapipe.Net.External;
 using Mediapipe.Net.Framework.Format;
-using Mediapipe.Net.Framework.Protobuf;
 using Mediapipe.Net.Solutions;
 using Mediapipe.Net.Util;
 using SeeShark;
 using SeeShark.Device;
 using SeeShark.FFmpeg;
 
-namespace Mediapipe.Net.Examples.FaceMesh
+namespace Mediapipe.Net.Examples.Pose
 {
     public static class Program
     {
         private static Camera? camera;
         private static FrameConverter? converter;
-        private static FaceMeshCpuSolution? calculator;
+        private static readonly PoseCpuSolution calculator =
+            new PoseCpuSolution(modelComplexity: 2, smoothLandmarks: false);
+
         private static ResourceManager? resourceManager;
 
         public static void Main(string[] args)
         {
             // Get and parse command line arguments
-            Options? parsed = Parser.Default.ParseArguments<Options>(args).Value;
-            if (parsed == null)
-                return;
+            Options parsed = Parser.Default.ParseArguments<Options>(args).Value;
 
             (int, int)? videoSize = null;
             if (parsed.Width != null && parsed.Height != null)
@@ -39,12 +37,10 @@ namespace Mediapipe.Net.Examples.FaceMesh
             else if (parsed.Width == null && parsed.Height != null)
                 Console.Error.WriteLine("Specifying height requires to specify width");
 
-            FFmpegManager.SetupFFmpeg(@"C:\ffmpeg\v5.0_x64\", "/usr/lib");
+            FFmpegManager.SetupFFmpeg(@"C:\ffmpeg\v5.0_x64\", @"/usr/lib");
             Glog.Initialize("stuff");
             if (parsed.UseResourceManager)
                 resourceManager = new DummyResourceManager();
-            else
-                Console.WriteLine("Not using a resource manager");
 
             // Get a camera device
             using (CameraManager manager = new CameraManager())
@@ -64,43 +60,55 @@ namespace Mediapipe.Net.Examples.FaceMesh
                         });
                     Console.WriteLine($"Using camera {camera.Info}");
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    Console.Error.WriteLine($"An error occured while trying to use camera at index {parsed.CameraIndex}.");
-                    Console.Error.WriteLine(e);
+                    Console.Error.WriteLine($"No camera exists at index {parsed.CameraIndex}.");
                     return;
                 }
             }
 
-            calculator = new FaceMeshCpuSolution();
+            camera.OnFrame += onFrameEventHandler;
+            camera.StartCapture();
 
             Console.CancelKeyPress += (sender, eventArgs) => exit();
-            int frameCount = 0;
-            while (true)
+        }
+
+        private static int frameCount = 0;
+        private static void onFrameEventHandler(object? sender, FrameEventArgs e)
+        {
+            if (calculator == null)
+                return;
+
+            Frame frame = e.Frame;
+            if (frame.Width == 0 || frame.Height == 0)
+                return;
+
+            converter ??= new FrameConverter(frame, PixelFormat.Rgba);
+            Frame cFrame = converter.Convert(frame);
+
+            ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
+                cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
+
+            PoseOutput handsOutput = calculator.Compute(imgframe);
+
+            if (handsOutput.PoseLandmarks != null)
             {
-                if (calculator == null)
-                    return;
-
-                var frame = camera.GetFrame();
-                converter ??= new FrameConverter(frame, PixelFormat.Rgba);
-                Frame cFrame = converter.Convert(frame);
-
-                using ImageFrame imgframe = new ImageFrame(ImageFormat.Srgba,
-                    cFrame.Width, cFrame.Height, cFrame.WidthStep, cFrame.RawData);
-
-                List<NormalizedLandmarkList>? landmarks = calculator.Compute(imgframe);
-                if (landmarks == null)
-                    Console.WriteLine("Got null landmarks");
-                else
-                    Console.WriteLine($"Got a list of {landmarks[0].Landmark.Count} landmarks at frame {frameCount++}");
+                var landmarks = handsOutput.PoseLandmarks.Landmark;
+                Console.WriteLine($"Got pose output with {landmarks.Count} landmarks"
+                    + $" at frame {frameCount}");
             }
+            else
+            {
+                Console.WriteLine("No pose landmarks");
+            }
+
+            frameCount++;
         }
 
         // Dispose everything on exit
         private static void exit()
         {
             Console.WriteLine("Exiting...");
-            camera?.StopCapture();
             camera?.Dispose();
             converter?.Dispose();
             calculator?.Dispose();
